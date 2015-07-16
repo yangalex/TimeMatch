@@ -171,12 +171,27 @@ class ViewController: UIViewController {
             sender.layer.borderColor = blueColor.CGColor
             sender.layer.cornerRadius = 0
             sender.backgroundColor = blueColor
-            sender.setTitleColor(UIColor.whiteColor(), forState: UIControlState.Normal)
+            sender.setBackgroundImage(nil, forState: .Selected)
+            sender.setTitleColor(UIColor.whiteColor(), forState: UIControlState.Selected)
             sender.selected = true
             
             // change size of button
             sender.frame = CGRectMake(sender.frame.origin.x - (spacing - CGFloat(BUTTON_SIZE)), sender.frame.origin.y, sender.frame.width + (spacing - CGFloat(BUTTON_SIZE))*2, sender.frame.height)
         }
+        
+        let leftEdgeIndexes = [0, 6, 12, 18, 24, 30, 36, 42]
+        let rightEdgeIndexes = [5, 11, 17, 23, 29, 35, 41, 47]
+        
+        // Customize edges
+        if contains(leftEdgeIndexes, fromTimeToIndex(sender.titleLabel!.text!)) {
+            sender.setBackgroundImage(UIImage(named: "ButtonEdgeLeft"), forState: .Selected)
+            sender.layer.borderColor = UIColor.clearColor().CGColor
+        }
+        if contains(rightEdgeIndexes, fromTimeToIndex(sender.titleLabel!.text!)) {
+            sender.setBackgroundImage(UIImage(named: "ButtonEdgeRight"), forState: .Selected)
+            sender.layer.borderColor = UIColor.clearColor().CGColor
+        }
+
         sender.isHandle = false
     }
     
@@ -219,6 +234,7 @@ class ViewController: UIViewController {
                     draggingOn = true
                 } else {
                     unselectTime(endButton)
+                    //endButton.selected = false
                 }
                 self.endButton = nil
             }
@@ -264,6 +280,25 @@ class ViewController: UIViewController {
         let startIndex = fromTimeToIndex(startButton.titleLabel!.text!)
         let endIndex = fromTimeToIndex(endButton.titleLabel!.text!)
         
+        if draggingOn {
+            startButton.setTitleColor(buttonColor, forState: .Selected)
+            endButton.setTitleColor(buttonColor, forState: .Selected)
+            if endIndex > startIndex {
+                startButton.setBackgroundImage(UIImage(named: "ButtonHandleLeft"), forState: .Selected)
+                endButton.setBackgroundImage(UIImage(named: "ButtonHandleRight"), forState: .Selected)
+            } else if endIndex < startIndex {
+                startButton.setBackgroundImage(UIImage(named: "ButtonHandleRight"), forState: .Selected)
+                endButton.setBackgroundImage(UIImage(named:"ButtonHandleLeft"), forState: .Selected)
+            }
+        } else {
+            startButton.layer.borderColor = blueColor.CGColor
+            startButton.layer.cornerRadius = 0.5 * startButton.frame.size.width
+            startButton.backgroundColor = blueColor
+            startButton.setTitleColor(UIColor.whiteColor(), forState: UIControlState.Normal)
+        }
+        
+        // ================================ unhighlighting ==================================================//
+        
         // After startIndex, moving to after startIndex but lower index
         if highlightedRange.end > startIndex && endIndex > startIndex && endIndex < highlightedRange.end {
             for i in endIndex+1...highlightedRange.end {
@@ -299,7 +334,10 @@ class ViewController: UIViewController {
                 }
             }
         }
+        
+        // ================================ unhighlighting end ==============================================//
 
+        
         // Actual highlighting code
         if endIndex > startIndex {  // Touch is behind starting point
             for i in startIndex+1..<endIndex {
@@ -311,6 +349,7 @@ class ViewController: UIViewController {
             }
         }
     }
+    
     
     func fromTimeToIndex(time: String) -> Int {
         var timeArray = time.componentsSeparatedByString(":")
@@ -326,18 +365,6 @@ class ViewController: UIViewController {
     }
     
     
-    func generateLeftSemiCircle() -> CAShapeLayer {
-        // create bezier path
-        var leftSemiCirclePath = UIBezierPath(arcCenter: CGPointMake(CGFloat(BUTTON_SIZE), CGFloat(BUTTON_SIZE/2)), radius: CGFloat(BUTTON_SIZE), startAngle: CGFloat(M_PI/2), endAngle: CGFloat(3*M_PI/2), clockwise: true)
-        leftSemiCirclePath.closePath()
-        
-        var semiCircleLayer = CAShapeLayer()
-        semiCircleLayer.path = leftSemiCirclePath.CGPath
-        semiCircleLayer.fillColor = blueColor.CGColor
-        
-        return semiCircleLayer
-        
-    }
     
     func generateRightSemiCircle() -> CAShapeLayer {
         // create bezier path
