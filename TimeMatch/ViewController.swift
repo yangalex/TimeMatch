@@ -15,14 +15,16 @@ struct IndexRange {
 
 class ViewController: UIViewController {
     
+    var draggingOn: Bool = false
+    
     var highlightedRange: IndexRange = IndexRange(start: 0, end: 0)
     
     var spacing: CGFloat!
     
-    var buttonsArray: [UIButton] = [UIButton]()
+    var buttonsArray: [TimeButton] = [TimeButton]()
     
-    var startButton: UIButton?
-    var endButton: UIButton?
+    var startButton: TimeButton?
+    var endButton: TimeButton?
     
     let buttonColor = UIColor(red: 180/255, green: 180/255, blue: 180/255, alpha: 1.0)
     let greenColor = UIColor(red: 46/255, green: 204/255, blue: 113/255, alpha: 1.0)
@@ -66,6 +68,11 @@ class ViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         
+        loadButtons()
+    }
+
+    func loadButtons() {
+        
         // calculate spacing
         // Formula: view Width - left and right margins - all buttons sizes = total free space between buttons
         // then divide total free space by 5 to get size between each button
@@ -105,17 +112,12 @@ class ViewController: UIViewController {
                 currentX = currentX + spacing
             }
         }
-        
-    }
-
-    override func didReceiveMemoryWarning() {
-        super.didReceiveMemoryWarning()
-        // Dispose of any resources that can be recreated.
+ 
     }
     
-    func buildTimeButton(withTitle: String, atX x: CGFloat, atY y: CGFloat) -> UIButton {
+    func buildTimeButton(withTitle: String, atX x: CGFloat, atY y: CGFloat) -> TimeButton {
         
-        var newButton = UIButton(frame: CGRectMake(x, y, CGFloat(BUTTON_SIZE), CGFloat(BUTTON_SIZE)))
+        var newButton = TimeButton(frame: CGRectMake(x, y, CGFloat(BUTTON_SIZE), CGFloat(BUTTON_SIZE)))
         newButton.backgroundColor = UIColor.whiteColor()
         newButton.layer.borderWidth = 3
         newButton.layer.borderColor = buttonColor.CGColor
@@ -130,50 +132,52 @@ class ViewController: UIViewController {
     }
     
     
-    func timeSelected(sender: UIButton!) {
-        if sender.selected == false {
-            sender.layer.borderColor = blueColor.CGColor
-            sender.backgroundColor = blueColor
-            sender.setTitleColor(UIColor.whiteColor(), forState: UIControlState.Normal)
-            sender.selected = true
+    func selectTime(sender:TimeButton!) {
+        // if it was a path button
+        if sender.isHandle == false && sender.selected == true {
+            sender.frame = CGRectMake(sender.frame.origin.x + (spacing - CGFloat(BUTTON_SIZE)), sender.frame.origin.y, CGFloat(BUTTON_SIZE), CGFloat(BUTTON_SIZE))
         } else {
-            sender.layer.borderColor = buttonColor.CGColor
-            sender.backgroundColor = UIColor.whiteColor()
-            sender.setTitleColor(buttonColor, forState: UIControlState.Normal)
-            sender.selected = false
+            sender.frame.size = CGSizeMake(CGFloat(BUTTON_SIZE), CGFloat(BUTTON_SIZE))
         }
-    }
-    
-    func selectTime(sender:UIButton!) {
+        
+        // General button redesign
         sender.layer.borderColor = blueColor.CGColor
         sender.layer.cornerRadius = 0.5 * sender.frame.size.width
         sender.backgroundColor = blueColor
         sender.setTitleColor(UIColor.whiteColor(), forState: UIControlState.Normal)
+
         sender.selected = true
+        sender.isHandle = true
     }
     
-    func unselectTime(sender: UIButton!) {
-        sender.selected = false
-        sender.frame.size = CGSizeMake(CGFloat(BUTTON_SIZE), CGFloat(BUTTON_SIZE))
+    func unselectTime(sender: TimeButton!) {
+        // fix positioning and size when button is selected but not a handle
+        if !sender.isHandle {
+            sender.frame = CGRectMake(sender.frame.origin.x + (spacing - CGFloat(BUTTON_SIZE)), sender.frame.origin.y, CGFloat(BUTTON_SIZE), CGFloat(BUTTON_SIZE))
+        }
         sender.layer.cornerRadius = 0.5 * sender.frame.size.width
         sender.layer.borderColor = buttonColor.CGColor
         sender.backgroundColor = UIColor.whiteColor()
         sender.setTitleColor(buttonColor, forState: UIControlState.Normal)
+        
+        sender.selected = false
+        sender.isHandle = false
     }
     
     
-    func timeDraggedInto(sender: UIButton!) {
+    func timeDraggedInto(sender: TimeButton!) {
         if sender.selected != true {
             let lightBlueColor = UIColor(red: 121/255, green: 219/255, blue: 243/255, alpha: 1.0)
-            sender.layer.borderColor = lightBlueColor.CGColor
+            sender.layer.borderColor = blueColor.CGColor
             sender.layer.cornerRadius = 0
-            sender.backgroundColor = lightBlueColor
+            sender.backgroundColor = blueColor
             sender.setTitleColor(UIColor.whiteColor(), forState: UIControlState.Normal)
             sender.selected = true
             
             // change size of button
             sender.frame = CGRectMake(sender.frame.origin.x - (spacing - CGFloat(BUTTON_SIZE)), sender.frame.origin.y, sender.frame.width + (spacing - CGFloat(BUTTON_SIZE))*2, sender.frame.height)
         }
+        sender.isHandle = false
     }
     
     override func touchesBegan(touches: Set<NSObject>, withEvent event: UIEvent) {
@@ -196,7 +200,6 @@ class ViewController: UIViewController {
                 } else {
                     selectTime(button)
                 }
-                println("Touched \(button.titleLabel!.text!)")
             }
         }
     }
@@ -211,7 +214,10 @@ class ViewController: UIViewController {
             
             // Exited button
             if !endButton.pointInside(buttonPoint, withEvent: event) {
-                if endButton != startButton {
+                // touched moved away from starting point
+                if endButton == startButton {
+                    draggingOn = true
+                } else {
                     unselectTime(endButton)
                 }
                 self.endButton = nil
@@ -228,6 +234,10 @@ class ViewController: UIViewController {
                     isInButton = true
                     self.endButton = button
                     selectTime(button)
+                    
+                    if startButton == endButton {
+                        draggingOn = false
+                    }
        
                     highlightPathFrom(startButton, toButton: endButton)
                     highlightedRange.end = fromTimeToIndex(button.titleLabel!.text!)
@@ -239,16 +249,17 @@ class ViewController: UIViewController {
                 //println("Not in any button")
             }
         }
+        println(draggingOn)
     }
     
     override func touchesEnded(touches: Set<NSObject>, withEvent event: UIEvent) {
-        highlightedRange.start = -1
-        highlightedRange.end = -1
+        highlightedRange.start = 0
+        highlightedRange.end = 0
         endButton = nil
         startButton = nil
     }
 
-    func highlightPathFrom(startButton: UIButton!, toButton endButton: UIButton!) {
+    func highlightPathFrom(startButton: TimeButton!, toButton endButton: TimeButton!) {
     
         let startIndex = fromTimeToIndex(startButton.titleLabel!.text!)
         let endIndex = fromTimeToIndex(endButton.titleLabel!.text!)
@@ -256,28 +267,36 @@ class ViewController: UIViewController {
         // After startIndex, moving to after startIndex but lower index
         if highlightedRange.end > startIndex && endIndex > startIndex && endIndex < highlightedRange.end {
             for i in endIndex+1...highlightedRange.end {
-                unselectTime(buttonsArray[i])
+                if buttonsArray[i].selected == true {
+                    unselectTime(buttonsArray[i])
+                }
             }
         }
         
         // Moving from after startIndex to somewhere before startIndex
         if highlightedRange.end > startIndex && endIndex < startIndex {
             for i in startIndex+1...highlightedRange.end {
-                unselectTime(buttonsArray[i])
+                if buttonsArray[i].selected == true {
+                    unselectTime(buttonsArray[i])
+                }
             }
         }
         
         // Moving from before startIndex to somewhere before startIndex but higher index
         if highlightedRange.end < startIndex && endIndex < startIndex && endIndex > highlightedRange.end {
             for i in highlightedRange.end..<endIndex {
-                unselectTime(buttonsArray[i])
+                if buttonsArray[i].selected == true {
+                    unselectTime(buttonsArray[i])
+                }
             }
         }
         
         // Move from before startIndex to somewhere after startIndex
         if highlightedRange.end < startIndex && endIndex > startIndex {
             for i in highlightedRange.end..<startIndex {
-                unselectTime(buttonsArray[i])
+                if buttonsArray[i].selected == true {
+                    unselectTime(buttonsArray[i])
+                }
             }
         }
 
@@ -305,7 +324,33 @@ class ViewController: UIViewController {
             return hour*2
         }
     }
-
+    
+    
+    func generateLeftSemiCircle() -> CAShapeLayer {
+        // create bezier path
+        var leftSemiCirclePath = UIBezierPath(arcCenter: CGPointMake(CGFloat(BUTTON_SIZE), CGFloat(BUTTON_SIZE/2)), radius: CGFloat(BUTTON_SIZE), startAngle: CGFloat(M_PI/2), endAngle: CGFloat(3*M_PI/2), clockwise: true)
+        leftSemiCirclePath.closePath()
+        
+        var semiCircleLayer = CAShapeLayer()
+        semiCircleLayer.path = leftSemiCirclePath.CGPath
+        semiCircleLayer.fillColor = blueColor.CGColor
+        
+        return semiCircleLayer
+        
+    }
+    
+    func generateRightSemiCircle() -> CAShapeLayer {
+        // create bezier path
+        var rightSemiCirclePath = UIBezierPath(arcCenter: CGPointMake(CGFloat(BUTTON_SIZE/2), CGFloat(BUTTON_SIZE/2)), radius: CGFloat(BUTTON_SIZE/2), startAngle: CGFloat(M_PI/2), endAngle: CGFloat(3*M_PI/2), clockwise: false)
+        rightSemiCirclePath.closePath()
+        
+        var semiCircleLayer = CAShapeLayer()
+        semiCircleLayer.path = rightSemiCirclePath.CGPath
+        semiCircleLayer.fillColor = UIColor.grayColor().CGColor
+        
+        return semiCircleLayer
+        
+    }
 }
 
 
