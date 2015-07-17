@@ -11,7 +11,15 @@ import UIKit
 class TimeButton: UIButton {
     
     var isHandle: Bool = false
-
+    var matchingHandle: TimeButton?
+    var isSingle: Bool = false
+    
+    enum TimeState {
+        case Single, Handle, Path, Unselected
+    }
+    
+    var timeState: TimeState = .Unselected
+   
     /*
     // Only override drawRect: if you perform custom drawing.
     // An empty implementation adversely affects performance during animation.
