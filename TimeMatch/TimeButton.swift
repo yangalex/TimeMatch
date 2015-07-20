@@ -10,15 +10,18 @@ import UIKit
 
 class TimeButton: UIButton {
     
-    var isHandle: Bool = false
+    // Used only if handle
     var matchingHandle: TimeButton?
-    var isSingle: Bool = false
     
     enum TimeState {
         case Single, Handle, Path, Unselected
     }
     
     var timeState: TimeState = .Unselected
+   
+    // Use for paths
+    var leftHandle: TimeButton?
+    var rightHandle: TimeButton?
    
     /*
     // Only override drawRect: if you perform custom drawing.

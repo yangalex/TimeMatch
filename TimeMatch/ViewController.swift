@@ -26,7 +26,7 @@ class ViewController: UIViewController {
     
     var draggingOn: Bool = false
     var isOnButton: Bool = false
-    var handleMoved: Bool = false
+    var draggingInitiated: Bool = false
     
     var highlightedRange: IndexRange = IndexRange(start: 0, end: 0)
     
@@ -153,6 +153,7 @@ class ViewController: UIViewController {
         sender.setTitleColor(UIColor.whiteColor(), forState: UIControlState.Selected)
 
         sender.selected = true
+        
         if draggingOn {
             sender.timeState = .Handle
         } else {
@@ -161,8 +162,9 @@ class ViewController: UIViewController {
     }
     
     func unselectTime(sender: TimeButton!) {
-        // fix positioning and size when button is selected but not a handle
+        // fix positioning and size when button is a path
         if sender.timeState == .Path {
+            // fix button positioning
             sender.frame = CGRectMake(sender.frame.origin.x + (spacing - CGFloat(BUTTON_SIZE)), sender.frame.origin.y, CGFloat(BUTTON_SIZE), CGFloat(BUTTON_SIZE))
         }
         sender.layer.cornerRadius = 0.5 * sender.frame.size.width
@@ -171,36 +173,54 @@ class ViewController: UIViewController {
         sender.setTitleColor(buttonColor, forState: UIControlState.Normal)
         sender.setBackgroundImage(nil, forState: .Selected)
         
+        sender.leftHandle = nil
+        sender.rightHandle = nil
+        sender.matchingHandle = nil
         sender.selected = false
         sender.timeState = .Unselected
     }
     
     
-    func turnToPath(sender: TimeButton!) {
-        if sender.timeState != .Path || sender.timeState == .Handle {
+    func turnToPath(button: TimeButton!) {
+        if button.timeState != .Path {
             let lightBlueColor = UIColor(red: 121/255, green: 219/255, blue: 243/255, alpha: 1.0)
-            sender.layer.borderColor = blueColor.CGColor
-            sender.layer.cornerRadius = 0
-            sender.backgroundColor = blueColor
-            sender.setBackgroundImage(nil, forState: .Selected)
-            sender.setTitleColor(UIColor.whiteColor(), forState: UIControlState.Selected)
-            sender.selected = true
+            button.layer.borderColor = blueColor.CGColor
+            button.layer.cornerRadius = 0
+            button.backgroundColor = blueColor
+            button.setBackgroundImage(nil, forState: .Selected)
+            button.setTitleColor(UIColor.whiteColor(), forState: UIControlState.Selected)
+            button.selected = true
             
             // change size of button
-            sender.frame = CGRectMake(sender.frame.origin.x - (spacing - CGFloat(BUTTON_SIZE)), sender.frame.origin.y, sender.frame.width + (spacing - CGFloat(BUTTON_SIZE))*2, sender.frame.height)
+            button.frame = CGRectMake(button.frame.origin.x - (spacing - CGFloat(BUTTON_SIZE)), button.frame.origin.y, button.frame.width + (spacing - CGFloat(BUTTON_SIZE))*2, button.frame.height)
+        }
+        
+        // Set left and right handles
+        if let startButton = self.startButton, endButton = self.endButton {
+            let startIndex = fromTimeToIndex(startButton.titleLabel!.text!)
+            let endIndex = fromTimeToIndex(endButton.titleLabel!.text!)
+            
+            if startIndex < endIndex {
+                button.leftHandle = startButton
+                button.rightHandle = endButton
+            } else if endIndex < startIndex {
+                button.leftHandle = endButton
+                button.rightHandle = startButton
+            }
         }
         
         // Customize edges
-        if contains(leftEdgeIndexes, fromTimeToIndex(sender.titleLabel!.text!)) {
-            sender.setBackgroundImage(UIImage(named: "ButtonEdgeLeft"), forState: .Selected)
-            sender.layer.borderColor = UIColor.clearColor().CGColor
+        if contains(leftEdgeIndexes, fromTimeToIndex(button.titleLabel!.text!)) {
+            button.setBackgroundImage(UIImage(named: "ButtonEdgeLeft"), forState: .Selected)
+            button.layer.borderColor = UIColor.clearColor().CGColor
         }
-        if contains(rightEdgeIndexes, fromTimeToIndex(sender.titleLabel!.text!)) {
-            sender.setBackgroundImage(UIImage(named: "ButtonEdgeRight"), forState: .Selected)
-            sender.layer.borderColor = UIColor.clearColor().CGColor
+        if contains(rightEdgeIndexes, fromTimeToIndex(button.titleLabel!.text!)) {
+            button.setBackgroundImage(UIImage(named: "ButtonEdgeRight"), forState: .Selected)
+            button.layer.borderColor = UIColor.clearColor().CGColor
         }
 
-        sender.timeState = TimeButton.TimeState.Path
+        button.timeState = TimeButton.TimeState.Path
+        
     }
     
     // Adds a blue rectangle to the right of the button to fill in gap
@@ -240,20 +260,20 @@ class ViewController: UIViewController {
                     self.endButton = button
                     highlightedRange.start = fromTimeToIndex(button.matchingHandle!.titleLabel!.text!)
                     highlightedRange.end = fromTimeToIndex(button.titleLabel!.text!)
-                } else {
-                    self.startButton = button
+                } else if button.timeState == .Path {
+                    draggingOn = true
                     self.endButton = button
-                    highlightedRange.start = fromTimeToIndex(button.titleLabel!.text!)
-                    highlightedRange.end = fromTimeToIndex(button.titleLabel!.text!)
-                }
-                
-                // pressed a normal button
-                if button.timeState != .Handle {
+                } else {
                     if button.selected {
                         unselectTime(button)
                     } else {
                         selectTime(button)
                     }
+                    
+                    self.startButton = button
+                    self.endButton = button
+                    highlightedRange.start = fromTimeToIndex(button.titleLabel!.text!)
+                    highlightedRange.end = fromTimeToIndex(button.titleLabel!.text!)
                 }
             }
         }
@@ -272,11 +292,16 @@ class ViewController: UIViewController {
                 // Exited button
                 if !endButton.pointInside(buttonPoint, withEvent: event) {
                     if endButton.timeState == .Handle {
-                        handleMoved = true
+                        draggingInitiated = true
+                    } else if endButton.timeState == .Path {
+                        draggingInitiated = true
                     }
+                    
                     // touched moved away from starting point
                     if endButton == startButton {
                         draggingOn = true
+                        startButton?.timeState = .Handle
+                        draggingInitiated = true
                     }
                     
                     isOnButton = false
@@ -291,11 +316,28 @@ class ViewController: UIViewController {
                     // Entered button
                     if button.pointInside(buttonPoint, withEvent: event) {
                         isOnButton = true
+                        let pastPosition = self.endButton   // currently used to clear extra rectangles
                         self.endButton = button
                         selectTime(button)
                         
                         if startButton == endButton {
                             draggingOn = false
+                            startButton?.timeState = .Single
+                        }
+                        
+                        // Path moved code
+                        if pastPosition?.timeState == .Path {
+                            let initialIndex = fromTimeToIndex(pastPosition!.titleLabel!.text!)
+                            // Check if drag was to the right or left to decide if startButton should be left or right handle
+                            if fromTimeToIndex(self.endButton!.titleLabel!.text!) > initialIndex {
+                                self.startButton = pastPosition?.rightHandle
+                                buttonsArray[initialIndex-1].timeState = .Handle
+                            
+                                
+                            } else if fromTimeToIndex(self.endButton!.titleLabel!.text!) < initialIndex {
+                                self.startButton = pastPosition?.leftHandle
+                            }
+                            
                         }
                         
                         // Check for neighboring handles
@@ -310,6 +352,8 @@ class ViewController: UIViewController {
                                 }
                             }
                         } else {
+                            // clear up extra rectangles
+                            unjoinNeighboringHandles(pastPosition!)
                             unjoinNeighboringHandles(startButton!)
                             unjoinNeighboringHandles(endButton!)
                         }
@@ -327,25 +371,20 @@ class ViewController: UIViewController {
         if let startButton = startButton {
  
             if startButton != endButton {
-                if handleMoved == false {
+                if draggingInitiated == false {
                     unselectTime(endButton)
                 }
                 self.startButton?.matchingHandle = endButton
                 self.endButton?.matchingHandle = startButton
-            } else {
-                if self.startButton!.selected {
-                    self.startButton!.timeState = .Single
-                } else {
-                    self.startButton!.timeState = .Unselected
-                }
             }
             
             highlightedRange.start = 0
             highlightedRange.end = 0
             endButton = nil
-            handleMoved = false
+            draggingInitiated = false
             self.startButton = nil
             isOnButton = false
+            draggingOn = false
         }
     }
 
@@ -453,6 +492,10 @@ class ViewController: UIViewController {
                 turnToPath(buttonsArray[i])
             }
         }
+    }
+    
+    func unhighlightPath(startIndex: Int, endIndex: Int) {
+        
     }
     
     
