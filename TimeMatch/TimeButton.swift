@@ -13,11 +13,31 @@ class TimeButton: UIButton {
     // Used only if handle
     var matchingHandle: TimeButton?
     
+    // keep spacing constant
+    var spacing: CGFloat?
+    
     enum TimeState {
         case Single, Handle, Path, Unselected
     }
     
-    var timeState: TimeState = .Unselected
+    var timeState: TimeState = .Unselected {
+        didSet {
+            // fix positioning for when button was a path
+            if oldValue == .Path {
+            
+            }
+            
+            if timeState == .Single {
+                
+            } else if timeState == .Handle {
+                
+            } else if timeState == .Path {
+                
+            } else if timeState == .Unselected {
+                
+            }
+        }
+    }
    
     // Use for paths
     var leftHandle: TimeButton?
