@@ -31,7 +31,7 @@ class ViewController: UIViewController {
     
     var highlightedRange: IndexRange = IndexRange(start: 0, end: 0)
     
-    var spacing: CGFloat!
+    var spacing: CGFloat! = 3
     var BUTTON_SIZE: CGFloat!
     
     var buttonsArray: [TimeButton] = [TimeButton]()
@@ -82,9 +82,9 @@ class ViewController: UIViewController {
         // calculate button size
         // Formula: (screen width - margins - space that spacing take) == space buttons have available to occupy
         //          divide that by 6 and you get size of each individual button
-        BUTTON_SIZE = self.view.frame.width - 16 - 25
+        BUTTON_SIZE = self.view.frame.width - 16 - spacing*5
         BUTTON_SIZE = BUTTON_SIZE/6
-        spacing = 5 + BUTTON_SIZE
+        spacing = spacing + BUTTON_SIZE
         
         // create and fill up array of TimeSlots
         var timeslots: [Timeslot] = [Timeslot]()
@@ -98,7 +98,7 @@ class ViewController: UIViewController {
         
         
         // Load buttons from timeslots
-        var currentY: CGFloat = UIApplication.sharedApplication().statusBarFrame.height
+        var currentY: CGFloat = UIApplication.sharedApplication().statusBarFrame.height + 50
         var currentX: CGFloat = 8
         var elementsInRow = 0
         
@@ -129,7 +129,7 @@ class ViewController: UIViewController {
         newButton.layer.borderColor = buttonColor.CGColor
         newButton.layer.cornerRadius = 0.5 * newButton.frame.size.width
         newButton.setTitle(withTitle, forState: UIControlState.Normal)
-        newButton.titleLabel?.font = UIFont(name: "HelveticaNeue-Light", size: 19)
+        newButton.titleLabel?.font = UIFont(name: "HelveticaNeue-Light", size: 16)
         newButton.setTitleColor(buttonColor, forState: UIControlState.Normal)
         
         newButton.userInteractionEnabled = false
@@ -180,7 +180,11 @@ class ViewController: UIViewController {
             button.setBackgroundImage(UIImage(named: "ButtonEdgeRight"), forState: .Selected)
             button.layer.borderColor = UIColor.clearColor().CGColor
         }
-
+        
+        // Change color if in the middle of a merge
+        if button == endButton {
+            button.backgroundColor = UIColor(red: 137/255, green: 196/255, blue: 244/255, alpha: 1.0)
+        }
         
     }
     
@@ -317,16 +321,58 @@ class ViewController: UIViewController {
                             startButton?.timeState = .Single
                         }
                         
-                        
                         // merging code
-                        if button.selected == true && !(numBetweenRange(fromTimeToIndex(button), startRange: highlightedRange.start, endRange: highlightedRange.end)) {
+                        // if button was already selected and not within own time cluster
+                        if (button.timeState == .Path || button.timeState == .Handle)  && !(numBetweenRangeInclusive(fromTimeToIndex(button), startRange: highlightedRange.start, endRange: highlightedRange.end)) {
                             isMerging = true
+                            
+                            if button.timeState == .Path {
+                                if highlightedRange.start < fromTimeToIndex(button) {
+                                    unhighlightOldPath(fromTimeToIndex(startButton!), endIndex: fromTimeToIndex(button.rightHandle!))
+                                    highlightedRange.end = fromTimeToIndex(button.rightHandle!)
+                                } else if highlightedRange.start > fromTimeToIndex(button) {
+                                    unhighlightOldPath(fromTimeToIndex(startButton!), endIndex: fromTimeToIndex(button.leftHandle!))
+                                    highlightedRange.end = fromTimeToIndex(button.leftHandle!)
+                                }
+                            } else if button.timeState == .Handle {
+                                highlightedRange.end = fromTimeToIndex(button.matchingHandle!)
+                            }
                         }
                         
-                        selectTime(button)
-                        highlightPathFrom(startButton, toButton: endButton)
-                        unhighlightOldPath(fromTimeToIndex(startButton!), endIndex: fromTimeToIndex(endButton!))
-                        highlightedRange.end = fromTimeToIndex(button)
+                        if isMerging {
+                            if !numBetweenRange(fromTimeToIndex(button), startRange: highlightedRange.start, endRange: highlightedRange.end) {
+                                isMerging = false
+                            } else {
+                                if button.timeState == .Path {
+                                    // highlight everything from our initial position to the end of the time cluster's right or left handle
+                                    if highlightedRange.start < fromTimeToIndex(button) {
+                                        highlightPathFrom(startButton, toButton: button.rightHandle)
+                                        button.rightHandle?.matchingHandle = startButton
+                                        startButton?.matchingHandle = button.rightHandle
+                                        highlightedRange.end = fromTimeToIndex(button.rightHandle!)
+                                    } else if highlightedRange.start > fromTimeToIndex(button) {
+                                        highlightPathFrom(startButton, toButton: button.leftHandle)
+                                        button.leftHandle?.matchingHandle = startButton
+                                        startButton?.matchingHandle = button.leftHandle
+                                        highlightedRange.end = fromTimeToIndex(button.leftHandle!)
+                                    }
+                                } else if button.timeState == .Handle {
+                                    highlightPathFrom(startButton, toButton: button.matchingHandle)
+                                    startButton?.matchingHandle = button.matchingHandle
+                                    button.matchingHandle?.matchingHandle = startButton
+                                    highlightedRange.end = fromTimeToIndex(button.matchingHandle!)
+                                }
+                            }
+                            
+                        }
+                        
+                        if !isMerging {
+                            selectTime(button)
+                            highlightPathFrom(startButton, toButton: endButton)
+                            unhighlightOldPath(fromTimeToIndex(startButton!), endIndex: fromTimeToIndex(endButton!))
+                            highlightedRange.end = fromTimeToIndex(button)
+                        }
+                        
                         break
                     }
                 }
@@ -352,10 +398,18 @@ class ViewController: UIViewController {
                 
             } else {
                 // set matching handles
-                if startButton != endButton {
-                    self.startButton?.matchingHandle = endButton
-                    self.endButton?.matchingHandle = startButton
+                if endButton!.timeState != .Path {  // necessary for when user lift finger mid-merging
+                    if startButton != endButton {
+                        self.startButton?.matchingHandle = endButton
+                        self.endButton?.matchingHandle = startButton
+                    }
                 }
+            }
+           
+            // when path is in middle of merge
+            if endButton?.timeState == .Path {
+                // revert to normal blue color
+                endButton?.backgroundColor = blueColor
             }
             
             highlightedRange.start = 0
@@ -366,6 +420,8 @@ class ViewController: UIViewController {
             isOnButton = false
             draggingOn = false
             touchBegan = false
+            isMerging = false
+            pathSplittable = false
         }
     }
     
@@ -443,14 +499,14 @@ class ViewController: UIViewController {
                     startButton.setBackgroundImage(UIImage(named: "ButtonHandleLeft"), forState: .Selected)
                 }
                 
-                
-                // first check if endButton is at a left edge
-                if contains(leftEdgeIndexes, endIndex) {
-                    endButton.setBackgroundImage(UIImage(named: "ButtonEdgeHandle"), forState: .Selected)
-                } else {
-                    endButton.setBackgroundImage(UIImage(named: "ButtonHandleRight"), forState: .Selected)
+                if !isMerging {
+                    // first check if endButton is at a left edge
+                    if contains(leftEdgeIndexes, endIndex) {
+                        endButton.setBackgroundImage(UIImage(named: "ButtonEdgeHandle"), forState: .Selected)
+                    } else {
+                        endButton.setBackgroundImage(UIImage(named: "ButtonHandleRight"), forState: .Selected)
+                    }
                 }
-                
             } else if endIndex < startIndex {
                 // first check if startButton is at a left edge
                 if contains(leftEdgeIndexes, startIndex) {
@@ -459,11 +515,13 @@ class ViewController: UIViewController {
                     startButton.setBackgroundImage(UIImage(named: "ButtonHandleRight"), forState: .Selected)
                 }
                 
+                if !isMerging {
                 // first check if endButton is at a right edge
-                if contains(rightEdgeIndexes, endIndex) {
-                    endButton.setBackgroundImage(UIImage(named: "ButtonEdgeHandle"), forState: .Selected)
-                } else {
-                    endButton.setBackgroundImage(UIImage(named:"ButtonHandleLeft"), forState: .Selected)
+                    if contains(rightEdgeIndexes, endIndex) {
+                        endButton.setBackgroundImage(UIImage(named: "ButtonEdgeHandle"), forState: .Selected)
+                    } else {
+                        endButton.setBackgroundImage(UIImage(named:"ButtonHandleLeft"), forState: .Selected)
+                    }
                 }
             }
         } else {    // startIndex == endIndex
@@ -565,12 +623,23 @@ class ViewController: UIViewController {
     
     func numBetweenRange(num: Int, startRange: Int, endRange: Int) -> Bool {
         if startRange < endRange {
+            return startRange+1..<endRange ~= num
+        } else if startRange > endRange {
+            return endRange+1..<startRange ~= num
+        } else {
+            return false
+        }
+    }
+    
+    func numBetweenRangeInclusive(num: Int, startRange: Int, endRange: Int) -> Bool {
+        if startRange < endRange {
             return startRange...endRange ~= num
         } else if startRange > endRange {
             return endRange...startRange ~= num
         } else {
             return false
         }
+
     }
     
     func rowFromIndex(index: Int) -> Int {
