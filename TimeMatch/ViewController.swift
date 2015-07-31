@@ -98,7 +98,7 @@ class ViewController: UIViewController {
         
         
         // Load buttons from timeslots
-        var currentY: CGFloat = UIApplication.sharedApplication().statusBarFrame.height + 50
+        var currentY: CGFloat = UIApplication.sharedApplication().statusBarFrame.height
         var currentX: CGFloat = 8
         var elementsInRow = 0
         
@@ -125,11 +125,32 @@ class ViewController: UIViewController {
         var newButton = TimeButton(frame: CGRectMake(x, y, CGFloat(BUTTON_SIZE), CGFloat(BUTTON_SIZE)))
         newButton.spacing = self.spacing
         newButton.backgroundColor = UIColor.whiteColor()
-        newButton.layer.borderWidth = 2
+        newButton.layer.borderWidth = 1.5
         newButton.layer.borderColor = buttonColor.CGColor
         newButton.layer.cornerRadius = 0.5 * newButton.frame.size.width
         newButton.setTitle(withTitle, forState: UIControlState.Normal)
-        newButton.titleLabel?.font = UIFont(name: "HelveticaNeue-Light", size: 16)
+        
+        var fontSize: CGFloat = 0
+        let screenHeight = UIScreen.mainScreen().bounds.height
+        println(screenHeight)
+        switch screenHeight {
+        case 480:
+            fontSize = 16
+        case 568:
+            fontSize = 16
+        case 667:
+            fontSize = 19
+        case 736:
+            fontSize = 20
+        default:
+            fontSize = 16
+        }
+        
+        if fromTimeToIndex(time: withTitle) % 2 == 0 {
+            newButton.titleLabel?.font = UIFont(name: "HelveticaNeue-Bold", size: fontSize)
+        } else {
+            newButton.titleLabel?.font = UIFont(name: "HelveticaNeue-Light", size: fontSize)
+        }
         newButton.setTitleColor(buttonColor, forState: UIControlState.Normal)
         
         newButton.userInteractionEnabled = false
@@ -316,6 +337,7 @@ class ViewController: UIViewController {
                             
                         }
                         
+                        // user dragged back to starting point
                         if startButton == endButton {
                             draggingOn = false
                             startButton?.timeState = .Single
@@ -335,6 +357,7 @@ class ViewController: UIViewController {
                                     highlightedRange.end = fromTimeToIndex(button.leftHandle!)
                                 }
                             } else if button.timeState == .Handle {
+                                unhighlightOldPath(fromTimeToIndex(startButton!), endIndex: fromTimeToIndex(button.matchingHandle!))
                                 highlightedRange.end = fromTimeToIndex(button.matchingHandle!)
                             }
                         }
@@ -365,7 +388,7 @@ class ViewController: UIViewController {
                             }
                             
                         }
-                        
+                        // normal behavior except when merging
                         if !isMerging {
                             selectTime(button)
                             highlightPathFrom(startButton, toButton: endButton)
@@ -609,6 +632,19 @@ class ViewController: UIViewController {
     
     func fromTimeToIndex(timeButton: TimeButton) -> Int {
         let time = timeButton.titleLabel!.text!
+        var timeArray = time.componentsSeparatedByString(":")
+        
+        let hour = Int(timeArray[0].toInt()!)
+        let minute = Int(timeArray[1].toInt()!)
+        
+        if minute != 0 {
+            return hour*2 + 1
+        } else {
+            return hour*2
+        }
+    }
+    
+    func fromTimeToIndex(#time: String) -> Int {
         var timeArray = time.componentsSeparatedByString(":")
         
         let hour = Int(timeArray[0].toInt()!)
